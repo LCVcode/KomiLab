@@ -115,6 +115,7 @@ class LauncherWindow(Gtk.Window):
         sgf_filter.set_name("SGF files")
         sgf_filter.add_pattern("*.sgf")
         dialog.add_filter(sgf_filter)
+        dialog.set_current_folder(str(self.paths.games_dir))
         try:
             response = dialog.run()
             if response == Gtk.ResponseType.OK:
