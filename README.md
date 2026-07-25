@@ -1,0 +1,47 @@
+# KomiLab Prototype
+
+KomiLab is a Linux desktop launcher for reviewing OGS games locally in stock KaTrain.
+
+## Run the prototype
+
+```bash
+uv venv --python 3.10 --system-site-packages .venv
+uv sync
+uv run komilab
+```
+
+The prototype uses GTK 3 through the system `python3-gi` package.
+
+Paste an OGS URL such as:
+
+```text
+https://online-go.com/game/88417735
+```
+
+Then click **Download and Review**.
+
+On first review, the prototype prepares a known-good CPU KataGo binary under:
+
+```text
+~/.local/share/komilab/engines/
+```
+
+KaTrain stdout/stderr is captured at:
+
+```text
+~/.local/state/komilab/logs/katrain.log
+```
+
+## KaTrain command discovery
+
+The prototype launches `katrain` from `PATH` if available. If not, it falls back to:
+
+```bash
+uv tool run --from katrain katrain
+```
+
+Override with:
+
+```bash
+KOMILAB_KATRAIN_COMMAND="/path/to/katrain" uv run komilab
+```
