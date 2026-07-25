@@ -1,5 +1,7 @@
 # KomiLab Prototype
 
+Version: 0.0.0
+
 KomiLab is a Linux desktop launcher for reviewing OGS games locally in stock KaTrain.
 
 ## Run the prototype
@@ -45,3 +47,7 @@ Override with:
 ```bash
 KOMILAB_KATRAIN_COMMAND="/path/to/katrain" uv run komilab
 ```
+
+## Versioning
+
+Use `uv version` for all version updates. See `VERSIONING.md`.
