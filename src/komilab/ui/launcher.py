@@ -8,7 +8,8 @@ from typing import Any
 import gi
 
 gi.require_version("Gtk", "3.0")
-_gi_repository: Any = __import__("gi.repository", fromlist=["GLib", "Gtk"])
+_gi_repository: Any = __import__("gi.repository", fromlist=["Gdk", "GLib", "Gtk"])
+Gdk: Any = _gi_repository.Gdk
 GLib: Any = _gi_repository.GLib
 Gtk: Any = _gi_repository.Gtk
 
@@ -26,6 +27,9 @@ class LauncherWindow(Gtk.Window):
         super().__init__(title="KomiLab")
         self.set_default_size(560, 260)
         self.set_border_width(12)
+        self.set_wmclass("komilab", "KomiLab")
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
+        self.set_position(Gtk.WindowPosition.CENTER)
         self.paths = get_app_paths()
         self.paths.ensure()
         self.source = OGSGameSource()
