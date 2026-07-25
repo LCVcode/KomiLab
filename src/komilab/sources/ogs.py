@@ -25,6 +25,7 @@ class OGSDownloadError(RuntimeError):
 @dataclass(frozen=True)
 class ImportedGame:
     game_id: str
+    source: str
     source_url: str
     sgf_path: Path
     sha256: str
@@ -91,6 +92,7 @@ class OGSGameSource:
 
         return ImportedGame(
             game_id=game_id,
+            source="ogs",
             source_url=f"https://online-go.com/game/{game_id}",
             sgf_path=final_path,
             sha256=sha256,

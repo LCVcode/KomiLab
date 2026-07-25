@@ -9,6 +9,7 @@ from komilab.sources.ogs import ImportedGame
 def _game(game_id: str, sha: str, finished: bool = False) -> ImportedGame:
     return ImportedGame(
         game_id=game_id,
+        source="ogs",
         source_url=f"https://online-go.com/game/{game_id}",
         sgf_path=Path(f"{game_id}.sgf"),
         sha256=sha,
@@ -27,6 +28,9 @@ def test_upsert_reports_changed_and_tracks_unfinished(tmp_path) -> None:
     unfinished = library.unfinished_games()
     assert len(unfinished) == 1
     assert unfinished[0].ogs_game_id == "1"
+    assert unfinished[0].source == "ogs"
+    assert unfinished[0].last_checked_at
+    assert unfinished[0].last_changed_at
 
     library.upsert_imported_game(_game("1", "ccc", finished=True))
     assert library.unfinished_games() == []
