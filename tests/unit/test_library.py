@@ -34,3 +34,6 @@ def test_upsert_reports_changed_and_tracks_unfinished(tmp_path) -> None:
 
     library.upsert_imported_game(_game("1", "ccc", finished=True))
     assert library.unfinished_games() == []
+    completed = library.completed_games()
+    assert len(completed) == 1
+    assert completed[0].ogs_game_id == "1"

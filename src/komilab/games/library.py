@@ -89,6 +89,17 @@ class GameLibrary:
             ).fetchall()
         return [_tracked_from_row(row) for row in rows]
 
+    def completed_games(self) -> list[TrackedGame]:
+        with self._connect() as con:
+            rows = con.execute(
+                _SELECT_GAMES
+                + """
+                WHERE is_finished = 1
+                ORDER BY updated_at DESC
+                """
+            ).fetchall()
+        return [_tracked_from_row(row) for row in rows]
+
     def recent_games(self, limit: int = 5) -> list[TrackedGame]:
         with self._connect() as con:
             rows = con.execute(

@@ -27,7 +27,7 @@ TEST_URL = "https://online-go.com/game/88417735"
 class LauncherWindow(Gtk.Window):
     def __init__(self) -> None:
         super().__init__(title="KomiLab")
-        self.set_default_size(560, 260)
+        self.set_default_size(660, 520)
         self.set_border_width(12)
         self.set_wmclass("komilab", "KomiLab")
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
@@ -37,6 +37,7 @@ class LauncherWindow(Gtk.Window):
         self.library = GameLibrary(self.paths.database_path)
         self.source = OGSGameSource()
         self.frontend = KaTrainFrontend(on_exit=self._on_katrain_exit)
+        self.selected_sgf_path: Path | None = None
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(root)
@@ -63,13 +64,14 @@ class LauncherWindow(Gtk.Window):
         self.download_button.connect("clicked", lambda *_: self.download_and_review())
         buttons.pack_start(self.download_button, False, False, 0)
 
-        self.local_button = Gtk.Button(label="Open Local SGF")
-        self.local_button.connect("clicked", lambda *_: self.open_local_sgf())
-        buttons.pack_start(self.local_button, False, False, 0)
-
         self.update_button = Gtk.Button(label="Update In-Progress Games")
         self.update_button.connect("clicked", lambda *_: self.update_in_progress_games())
         buttons.pack_start(self.update_button, False, False, 0)
+
+        self.open_selected_button = Gtk.Button(label="Open Selected")
+        self.open_selected_button.connect("clicked", lambda *_: self.open_selected_game())
+        self.open_selected_button.set_sensitive(False)
+        buttons.pack_start(self.open_selected_button, False, False, 0)
 
         self.stop_button = Gtk.Button(label="Stop KaTrain")
         self.stop_button.connect("clicked", lambda *_: self.frontend.stop())
@@ -80,11 +82,45 @@ class LauncherWindow(Gtk.Window):
         self.status.set_xalign(0)
         root.pack_start(self.status, False, False, 0)
 
-        self.recent = Gtk.Label(label=self._recent_text())
-        self.recent.set_xalign(0)
-        root.pack_start(self.recent, False, False, 0)
+        ongoing_label = Gtk.Label()
+        ongoing_label.set_markup("<b>Locally saved online games still in progress</b>")
+        ongoing_label.set_xalign(0)
+        root.pack_start(ongoing_label, False, False, 0)
 
+        self.ongoing_store = Gtk.ListStore(str, str, str)
+        self.ongoing_view = self._create_game_view(self.ongoing_store)
+        root.pack_start(self._scrolled(self.ongoing_view), True, True, 0)
+
+        completed_label = Gtk.Label()
+        completed_label.set_markup("<b>Completed local games</b>")
+        completed_label.set_xalign(0)
+        root.pack_start(completed_label, False, False, 0)
+
+        self.completed_store = Gtk.ListStore(str, str, str)
+        self.completed_view = self._create_game_view(self.completed_store)
+        root.pack_start(self._scrolled(self.completed_view), True, True, 0)
+
+        self.refresh_game_lists()
         self.connect("destroy", self._on_destroy)
+
+    def _create_game_view(self, store: object) -> object:
+        view = Gtk.TreeView(model=store)
+        for title, column_id in [("OGS Game", 0), ("Status", 1)]:
+            renderer = Gtk.CellRendererText()
+            column = Gtk.TreeViewColumn(title, renderer, text=column_id)
+            column.set_resizable(True)
+            view.append_column(column)
+        selection = view.get_selection()
+        selection.connect("changed", self._on_game_selected)
+        view.connect("row-activated", lambda *_: self.open_selected_game())
+        return view
+
+    def _scrolled(self, child: object) -> object:
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_min_content_height(120)
+        scrolled.add(child)
+        return scrolled
 
     def download_and_review(self) -> None:
         reference = self.entry.get_text().strip()
@@ -133,43 +169,22 @@ class LauncherWindow(Gtk.Window):
         self._set_busy(
             False, f"Update complete: {changed} changed, {checked} checked, {errors} failed."
         )
-        self.recent.set_text(self._recent_text())
+        self.refresh_game_lists()
         return False
 
-    def open_local_sgf(self) -> None:
-        dialog = Gtk.FileChooserDialog(
-            title="Open SGF",
-            parent=self,
-            action=Gtk.FileChooserAction.OPEN,
-            buttons=(
-                Gtk.STOCK_CANCEL,
-                Gtk.ResponseType.CANCEL,
-                Gtk.STOCK_OPEN,
-                Gtk.ResponseType.OK,
-            ),
-        )
-        sgf_filter = Gtk.FileFilter()
-        sgf_filter.set_name("SGF files")
-        sgf_filter.add_pattern("*.sgf")
-        dialog.add_filter(sgf_filter)
-        dialog.set_current_folder(str(self.paths.games_dir))
+    def open_selected_game(self) -> None:
+        if self.selected_sgf_path is None:
+            self._show_error("Select a saved game first.")
+            return
         try:
-            response = dialog.run()
-            if response == Gtk.ResponseType.OK:
-                filename = dialog.get_filename()
-                if filename:
-                    path = Path(filename)
-                    try:
-                        validate_sgf_file(path)
-                    except SGFValidationError as exc:
-                        self._show_error(str(exc))
-                        return
-                    self._set_busy(True, "Preparing KataGo engine…")
-                    threading.Thread(
-                        target=self._local_launch_worker, args=(path,), daemon=True
-                    ).start()
-        finally:
-            dialog.destroy()
+            validate_sgf_file(self.selected_sgf_path)
+        except SGFValidationError as exc:
+            self._show_error(str(exc))
+            return
+        self._set_busy(True, "Preparing KataGo engine…")
+        threading.Thread(
+            target=self._local_launch_worker, args=(self.selected_sgf_path,), daemon=True
+        ).start()
 
     def _local_launch_worker(self, path: Path) -> None:
         try:
@@ -192,10 +207,10 @@ class LauncherWindow(Gtk.Window):
             return False
         self._set_busy(False, f"KaTrain running: {sgf_path.name}")
         self.download_button.set_sensitive(False)
-        self.local_button.set_sensitive(False)
         self.update_button.set_sensitive(False)
+        self.open_selected_button.set_sensitive(False)
         self.stop_button.set_sensitive(True)
-        self.recent.set_text(self._recent_text())
+        self.refresh_game_lists()
         self.iconify()
         return False
 
@@ -206,11 +221,11 @@ class LauncherWindow(Gtk.Window):
         self.deiconify()
         self.present()
         self.download_button.set_sensitive(True)
-        self.local_button.set_sensitive(True)
         self.update_button.set_sensitive(True)
+        self.open_selected_button.set_sensitive(self.selected_sgf_path is not None)
         self.stop_button.set_sensitive(False)
         self.status.set_text(f"KaTrain exited with code {code}.")
-        self.recent.set_text(self._recent_text())
+        self.refresh_game_lists()
         return False
 
     def _finish_with_error(self, message: str) -> bool:
@@ -220,9 +235,28 @@ class LauncherWindow(Gtk.Window):
 
     def _set_busy(self, busy: bool, message: str) -> None:
         self.download_button.set_sensitive(not busy)
-        self.local_button.set_sensitive(not busy)
         self.update_button.set_sensitive(not busy)
+        self.open_selected_button.set_sensitive(not busy and self.selected_sgf_path is not None)
         self.status.set_text(message)
+
+    def _on_game_selected(self, selection: Any) -> None:
+        model, row_iter = selection.get_selected()
+        if row_iter is None:
+            self.selected_sgf_path = None
+            self.open_selected_button.set_sensitive(False)
+            return
+        self.selected_sgf_path = Path(model[row_iter][2])
+        self.open_selected_button.set_sensitive(not self.frontend.is_running())
+
+    def refresh_game_lists(self) -> None:
+        self.ongoing_store.clear()
+        self.completed_store.clear()
+        for game in self.library.unfinished_games():
+            self.ongoing_store.append(
+                [game.ogs_game_id, game.phase or "in progress", str(game.sgf_path)]
+            )
+        for game in self.library.completed_games():
+            self.completed_store.append([game.ogs_game_id, "finished", str(game.sgf_path)])
 
     def _show_error(self, message: str) -> None:
         dialog = Gtk.MessageDialog(
@@ -234,21 +268,6 @@ class LauncherWindow(Gtk.Window):
         )
         dialog.run()
         dialog.destroy()
-
-    def _recent_text(self) -> str:
-        tracked = self.library.recent_games(limit=5)
-        if tracked:
-            labels = []
-            for game in tracked:
-                status = "finished" if game.is_finished else game.phase or "in progress"
-                labels.append(f"{game.ogs_game_id} ({status})")
-            return "Recent games: " + ", ".join(labels)
-        games = sorted(
-            self.paths.games_dir.glob("*.sgf"), key=lambda p: p.stat().st_mtime, reverse=True
-        )
-        if not games:
-            return "Recent games: none yet"
-        return "Recent games: " + ", ".join(path.name for path in games[:5])
 
     def _on_destroy(self, *_args: object) -> None:
         self.frontend.stop()
