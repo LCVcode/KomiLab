@@ -26,6 +26,10 @@ class AppPaths:
     def logs_dir(self) -> Path:
         return self.state_dir / "logs"
 
+    @property
+    def database_path(self) -> Path:
+        return self.data_dir / "database.sqlite3"
+
     def ensure(self) -> None:
         for path in [
             self.config_dir,

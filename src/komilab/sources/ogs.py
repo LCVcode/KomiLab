@@ -28,6 +28,8 @@ class ImportedGame:
     source_url: str
     sgf_path: Path
     sha256: str
+    is_finished: bool
+    phase: str
 
 
 class OGSGameSource:
@@ -76,6 +78,8 @@ class OGSGameSource:
 
         sgf = ogs_json_to_sgf(data)
         sha256 = hashlib.sha256(sgf.encode("utf-8")).hexdigest()
+        phase = _game_phase(data)
+        is_finished = _is_finished(data, phase)
         final_path = destination_dir / f"{game_id}.sgf"
 
         with tempfile.NamedTemporaryFile(
@@ -90,7 +94,26 @@ class OGSGameSource:
             source_url=f"https://online-go.com/game/{game_id}",
             sgf_path=final_path,
             sha256=sha256,
+            is_finished=is_finished,
+            phase=phase,
         )
+
+
+def _game_phase(data: dict[str, object]) -> str:
+    gamedata = data.get("gamedata")
+    if isinstance(gamedata, dict):
+        gamedata_phase = gamedata.get("phase")
+        if gamedata_phase:
+            return str(gamedata_phase)
+    if data.get("phase"):
+        return str(data["phase"])
+    return ""
+
+
+def _is_finished(data: dict[str, object], phase: str) -> bool:
+    if phase.lower() in {"finished", "ended", "gameover", "stone removal"}:
+        return True
+    return bool(data.get("ended") or data.get("outcome"))
 
 
 def _sgf_escape(value: object) -> str:

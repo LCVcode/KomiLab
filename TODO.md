@@ -154,8 +154,8 @@ https://online-go.com/game/88417735
 
 ## Phase 5: Local Game Library
 
-- [ ] Create SQLite schema using stdlib `sqlite3`.
-- [ ] Track:
+- [x] Create SQLite schema using stdlib `sqlite3`.
+- [x] Track:
   - internal ID,
   - OGS game ID,
   - source URL,
@@ -164,9 +164,9 @@ https://online-go.com/game/88417735
   - import timestamp,
   - last reviewed timestamp,
   - review count.
-- [ ] Implement duplicate detection.
-- [ ] Implement recent games query.
-- [ ] Add safe initial migration mechanism.
+- [x] Implement duplicate detection.
+- [x] Implement recent games query.
+- [x] Add safe initial migration mechanism.
 
 ---
 

@@ -15,6 +15,7 @@ GLib: Any = _gi_repository.GLib
 Gtk: Any = _gi_repository.Gtk
 
 from komilab.config.paths import get_app_paths
+from komilab.games.library import GameLibrary, TrackedGame
 from komilab.games.sgf import SGFValidationError, validate_sgf_file
 from komilab.review.config import ReviewConfigError, ensure_cpu_katago, render_katrain_config
 from komilab.review.katrain import KaTrainFrontend, KaTrainLaunchError
@@ -33,6 +34,7 @@ class LauncherWindow(Gtk.Window):
         self.set_position(Gtk.WindowPosition.CENTER)
         self.paths = get_app_paths()
         self.paths.ensure()
+        self.library = GameLibrary(self.paths.database_path)
         self.source = OGSGameSource()
         self.frontend = KaTrainFrontend(on_exit=self._on_katrain_exit)
 
@@ -65,6 +67,10 @@ class LauncherWindow(Gtk.Window):
         self.local_button.connect("clicked", lambda *_: self.open_local_sgf())
         buttons.pack_start(self.local_button, False, False, 0)
 
+        self.update_button = Gtk.Button(label="Update In-Progress Games")
+        self.update_button.connect("clicked", lambda *_: self.update_in_progress_games())
+        buttons.pack_start(self.update_button, False, False, 0)
+
         self.stop_button = Gtk.Button(label="Stop KaTrain")
         self.stop_button.connect("clicked", lambda *_: self.frontend.stop())
         self.stop_button.set_sensitive(False)
@@ -92,12 +98,43 @@ class LauncherWindow(Gtk.Window):
         try:
             imported = self.source.download(reference, self.paths.games_dir)
             validate_sgf_file(imported.sgf_path)
+            self.library.upsert_imported_game(imported)
             katago_path = ensure_cpu_katago(self.paths)
             config_path = render_katrain_config(self.paths, katago_path)
         except (OGSReferenceError, OGSDownloadError, SGFValidationError, ReviewConfigError) as exc:
             GLib.idle_add(self._finish_with_error, str(exc))
             return
         GLib.idle_add(self._launch_sgf, imported.sgf_path, config_path)
+
+    def update_in_progress_games(self) -> None:
+        unfinished = self.library.unfinished_games()
+        if not unfinished:
+            self.status.set_text("No tracked in-progress games to update.")
+            return
+        self._set_busy(True, f"Checking {len(unfinished)} in-progress game(s)…")
+        threading.Thread(target=self._update_worker, args=(unfinished,), daemon=True).start()
+
+    def _update_worker(self, games: list[TrackedGame]) -> None:
+        checked = 0
+        changed = 0
+        errors = 0
+        for game in games:
+            checked += 1
+            try:
+                imported = self.source.download(game.ogs_game_id, self.paths.games_dir)
+                validate_sgf_file(imported.sgf_path)
+                if self.library.upsert_imported_game(imported):
+                    changed += 1
+            except (OGSReferenceError, OGSDownloadError, SGFValidationError):
+                errors += 1
+        GLib.idle_add(self._finish_update, checked, changed, errors)
+
+    def _finish_update(self, checked: int, changed: int, errors: int) -> bool:
+        self._set_busy(
+            False, f"Update complete: {changed} changed, {checked} checked, {errors} failed."
+        )
+        self.recent.set_text(self._recent_text())
+        return False
 
     def open_local_sgf(self) -> None:
         dialog = Gtk.FileChooserDialog(
@@ -156,7 +193,9 @@ class LauncherWindow(Gtk.Window):
         self._set_busy(False, f"KaTrain running: {sgf_path.name}")
         self.download_button.set_sensitive(False)
         self.local_button.set_sensitive(False)
+        self.update_button.set_sensitive(False)
         self.stop_button.set_sensitive(True)
+        self.recent.set_text(self._recent_text())
         self.iconify()
         return False
 
@@ -168,6 +207,7 @@ class LauncherWindow(Gtk.Window):
         self.present()
         self.download_button.set_sensitive(True)
         self.local_button.set_sensitive(True)
+        self.update_button.set_sensitive(True)
         self.stop_button.set_sensitive(False)
         self.status.set_text(f"KaTrain exited with code {code}.")
         self.recent.set_text(self._recent_text())
@@ -181,6 +221,7 @@ class LauncherWindow(Gtk.Window):
     def _set_busy(self, busy: bool, message: str) -> None:
         self.download_button.set_sensitive(not busy)
         self.local_button.set_sensitive(not busy)
+        self.update_button.set_sensitive(not busy)
         self.status.set_text(message)
 
     def _show_error(self, message: str) -> None:
@@ -195,6 +236,13 @@ class LauncherWindow(Gtk.Window):
         dialog.destroy()
 
     def _recent_text(self) -> str:
+        tracked = self.library.recent_games(limit=5)
+        if tracked:
+            labels = []
+            for game in tracked:
+                status = "finished" if game.is_finished else game.phase or "in progress"
+                labels.append(f"{game.ogs_game_id} ({status})")
+            return "Recent games: " + ", ".join(labels)
         games = sorted(
             self.paths.games_dir.glob("*.sgf"), key=lambda p: p.stat().st_mtime, reverse=True
         )

@@ -9,7 +9,7 @@ MAJOR.MINOR.PATCH
 Current version:
 
 ```text
-0.0.0
+0.1.0
 ```
 
 Version changes must be made with `uv` so `pyproject.toml`, `uv.lock`, and the local environment stay consistent.

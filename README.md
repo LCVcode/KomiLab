@@ -1,6 +1,6 @@
 # KomiLab Prototype
 
-Version: 0.0.0
+Version: 0.1.0
 
 KomiLab is a Linux desktop launcher for reviewing OGS games locally in stock KaTrain.
 
@@ -21,6 +21,9 @@ https://online-go.com/game/88417735
 ```
 
 Then click **Download and Review**.
+
+Imported OGS games are tracked locally. If a tracked game is still in progress, use
+**Update In-Progress Games** to re-check OGS and overwrite the local SGF when newer moves are found.
 
 On first review, the prototype prepares a known-good CPU KataGo binary under:
 
