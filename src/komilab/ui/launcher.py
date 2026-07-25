@@ -7,6 +7,7 @@ from typing import Any
 
 import gi
 
+gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 _gi_repository: Any = __import__("gi.repository", fromlist=["Gdk", "GLib", "Gtk"])
 Gdk: Any = _gi_repository.Gdk
