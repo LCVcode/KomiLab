@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 import threading
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,7 @@ Gtk: Any = _gi_repository.Gtk
 
 from komilab.config.paths import get_app_paths
 from komilab.games.library import GameLibrary, TrackedGame
-from komilab.games.sgf import SGFValidationError, validate_sgf_file
+from komilab.games.sgf import SGFValidationError, count_sgf_moves, validate_sgf_file
 from komilab.review.config import ReviewConfigError, ensure_cpu_katago, render_katrain_config
 from komilab.review.katrain import KaTrainFrontend, KaTrainLaunchError
 from komilab.sources.ogs import OGSDownloadError, OGSGameSource, OGSReferenceError
@@ -38,6 +39,7 @@ class LauncherWindow(Gtk.Window):
         self.source = OGSGameSource()
         self.frontend = KaTrainFrontend(on_exit=self._on_katrain_exit)
         self.selected_sgf_path: Path | None = None
+        self.updated_game_ids: set[str] = set()
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(root)
@@ -87,7 +89,7 @@ class LauncherWindow(Gtk.Window):
         ongoing_label.set_xalign(0)
         root.pack_start(ongoing_label, False, False, 0)
 
-        self.ongoing_store = Gtk.ListStore(str, str, str)
+        self.ongoing_store = Gtk.ListStore(str, str, str, str, str, str, str, bool)
         self.ongoing_view = self._create_game_view(self.ongoing_store)
         root.pack_start(self._scrolled(self.ongoing_view), True, True, 0)
 
@@ -96,7 +98,7 @@ class LauncherWindow(Gtk.Window):
         completed_label.set_xalign(0)
         root.pack_start(completed_label, False, False, 0)
 
-        self.completed_store = Gtk.ListStore(str, str, str)
+        self.completed_store = Gtk.ListStore(str, str, str, str, str, str, str, bool)
         self.completed_view = self._create_game_view(self.completed_store)
         root.pack_start(self._scrolled(self.completed_view), True, True, 0)
 
@@ -105,9 +107,17 @@ class LauncherWindow(Gtk.Window):
 
     def _create_game_view(self, store: object) -> object:
         view = Gtk.TreeView(model=store)
-        for title, column_id in [("OGS Game", 0), ("Status", 1)]:
+        for title, column_id in [
+            ("OGS Game", 0),
+            ("Status", 1),
+            ("Moves", 3),
+            ("Last Checked", 4),
+            ("Last Changed", 5),
+        ]:
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(title, renderer, text=column_id)
+            column.add_attribute(renderer, "cell-background", 6)
+            column.add_attribute(renderer, "cell-background-set", 7)
             column.set_resizable(True)
             view.append_column(column)
         selection = view.get_selection()
@@ -153,6 +163,7 @@ class LauncherWindow(Gtk.Window):
     def _update_worker(self, games: list[TrackedGame]) -> None:
         checked = 0
         changed = 0
+        changed_ids: list[str] = []
         errors = 0
         for game in games:
             checked += 1
@@ -161,13 +172,19 @@ class LauncherWindow(Gtk.Window):
                 validate_sgf_file(imported.sgf_path)
                 if self.library.upsert_imported_game(imported):
                     changed += 1
+                    changed_ids.append(imported.game_id)
             except (OGSReferenceError, OGSDownloadError, SGFValidationError):
                 errors += 1
-        GLib.idle_add(self._finish_update, checked, changed, errors)
+        GLib.idle_add(self._finish_update, checked, changed, errors, changed_ids)
 
-    def _finish_update(self, checked: int, changed: int, errors: int) -> bool:
+    def _finish_update(
+        self, checked: int, changed: int, errors: int, changed_ids: list[str]
+    ) -> bool:
+        self.updated_game_ids = set(changed_ids)
         self._set_busy(
-            False, f"Update complete: {changed} changed, {checked} checked, {errors} failed."
+            False,
+            f"Update complete: {changed} changed, {checked} checked, {errors} failed. "
+            "Updated rows are highlighted.",
         )
         self.refresh_game_lists()
         return False
@@ -252,11 +269,21 @@ class LauncherWindow(Gtk.Window):
         self.ongoing_store.clear()
         self.completed_store.clear()
         for game in self.library.unfinished_games():
-            self.ongoing_store.append(
-                [game.ogs_game_id, game.phase or "in progress", str(game.sgf_path)]
-            )
+            self.ongoing_store.append(self._game_row(game, game.phase or "in progress"))
         for game in self.library.completed_games():
-            self.completed_store.append([game.ogs_game_id, "finished", str(game.sgf_path)])
+            self.completed_store.append(self._game_row(game, "finished"))
+
+    def _game_row(self, game: TrackedGame, status: str) -> list[object]:
+        return [
+            game.ogs_game_id,
+            status,
+            str(game.sgf_path),
+            str(count_sgf_moves(game.sgf_path)),
+            _format_timestamp(game.last_checked_at),
+            _format_timestamp(game.last_changed_at),
+            "#fff2a8",
+            game.ogs_game_id in self.updated_game_ids,
+        ]
 
     def _show_error(self, message: str) -> None:
         dialog = Gtk.MessageDialog(
@@ -272,6 +299,16 @@ class LauncherWindow(Gtk.Window):
     def _on_destroy(self, *_args: object) -> None:
         self.frontend.stop()
         Gtk.main_quit()
+
+
+def _format_timestamp(value: str) -> str:
+    if not value:
+        return "never"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    return parsed.astimezone().strftime("%Y-%m-%d %H:%M")
 
 
 def run() -> None:
