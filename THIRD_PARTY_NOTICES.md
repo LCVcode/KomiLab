@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-KomiLab currently does not vendor third-party runtime source code or binaries in this repository.
+KomiLab itself is distributed under the MIT License. It currently does not vendor third-party runtime source code or binaries in this repository.
 
 ## Runtime integrations
 
@@ -22,4 +22,4 @@ Known license metadata from the current environment:
 - `packaging`: Apache-2.0 OR BSD-2-Clause
 - `pathspec`: MPL-2.0
 
-If KomiLab later bundles any third-party code, binaries, models, or assets, this file and release packaging should be updated with the corresponding license texts and attribution notices.
+If KomiLab later bundles any third-party code, binaries, models, or assets, this file and release packaging should be updated with the corresponding license texts and attribution notices. Future GitHub releases should also preserve upstream copyright notices for any redistributed artifacts.

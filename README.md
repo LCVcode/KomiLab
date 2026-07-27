@@ -56,7 +56,8 @@ Use `uv version` for all version updates. See `VERSIONING.md`.
 
 ## Licensing
 
-KomiLab source code is currently proprietary/all-rights-reserved. See `LICENSE`.
+KomiLab is free and open-source software distributed under the MIT License. See
+`LICENSE`.
 
 Third-party tools used or launched by the prototype, including GTK/PyGObject,
 KaTrain, KataGo, and development tooling, are not vendored in this repository.
