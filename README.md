@@ -53,3 +53,11 @@ KOMILAB_KATRAIN_COMMAND="/path/to/katrain" uv run komilab
 ## Versioning
 
 Use `uv version` for all version updates. See `VERSIONING.md`.
+
+## Licensing
+
+KomiLab source code is currently proprietary/all-rights-reserved. See `LICENSE`.
+
+Third-party tools used or launched by the prototype, including GTK/PyGObject,
+KaTrain, KataGo, and development tooling, are not vendored in this repository.
+See `THIRD_PARTY_NOTICES.md` for current notes.

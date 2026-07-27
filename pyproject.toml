@@ -3,6 +3,8 @@ name = "komilab"
 version = "0.3.0"
 description = "Local AI review for your Go games."
 readme = "README.md"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = []
 
