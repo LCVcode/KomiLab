@@ -6,8 +6,10 @@ import re
 import tempfile
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlparse
 
 MAX_GAME_JSON_BYTES = 10 * 1024 * 1024
@@ -129,6 +131,21 @@ def _sgf_coord(x: int, y: int) -> str:
     return letters[x] + letters[y]
 
 
+def _initial_state_coords(value: object) -> list[str]:
+    if not isinstance(value, str) or len(value) % 2 != 0:
+        return []
+    return [value[index : index + 2] for index in range(0, len(value), 2)]
+
+
+def _setup_property(name: str, coords: list[str]) -> str:
+    return name + "".join(f"[{_sgf_escape(coord)}]" for coord in coords)
+
+
+def _initial_player(data: dict[str, object], gamedata: Mapping[object, object]) -> str:
+    value = gamedata.get("initial_player", data.get("initial_player", "black"))
+    return "W" if str(value).lower() == "white" else "B"
+
+
 def _as_int(value: object, default: int) -> int:
     if isinstance(value, int):
         return value
@@ -141,9 +158,10 @@ def _as_int(value: object, default: int) -> int:
 
 def ogs_json_to_sgf(data: dict[str, object]) -> str:
     game_id = str(data.get("id", ""))
-    gamedata = data.get("gamedata")
-    if not isinstance(gamedata, dict):
+    gamedata_value = data.get("gamedata")
+    if not isinstance(gamedata_value, dict):
         raise OGSDownloadError("OGS game data did not include moves.")
+    gamedata = cast(dict[object, object], gamedata_value)
 
     width = _as_int(gamedata.get("width", data.get("width")), 19)
     height = _as_int(gamedata.get("height", data.get("height")), 19)
@@ -156,6 +174,14 @@ def ogs_json_to_sgf(data: dict[str, object]) -> str:
     black_name = black.get("username", "Black") if isinstance(black, dict) else "Black"
     white_name = white.get("username", "White") if isinstance(white, dict) else "White"
 
+    handicap = _as_int(gamedata.get("handicap", data.get("handicap")), 0)
+    initial_state = gamedata.get("initial_state")
+    black_setup: list[str] = []
+    white_setup: list[str] = []
+    if isinstance(initial_state, dict):
+        black_setup = _initial_state_coords(initial_state.get("black"))
+        white_setup = _initial_state_coords(initial_state.get("white"))
+
     props = [
         "(;GM[1]FF[4]",
         f"CA[UTF-8]AP[KomiLab:0.1]SZ[{width}]",
@@ -165,6 +191,14 @@ def ogs_json_to_sgf(data: dict[str, object]) -> str:
         f"GN[{_sgf_escape(data.get('name', 'OGS game ' + game_id))}]",
         f"GC[Imported from https://online-go.com/game/{game_id}]",
     ]
+    if handicap:
+        props.append(f"HA[{handicap}]")
+    if black_setup:
+        props.append(_setup_property("AB", black_setup))
+    if white_setup:
+        props.append(_setup_property("AW", white_setup))
+    if black_setup or white_setup:
+        props.append(f"PL[{_initial_player(data, gamedata)}]")
     if data.get("outcome"):
         props.append(f"RE[{_sgf_escape(data['outcome'])}]")
 
@@ -173,7 +207,7 @@ def ogs_json_to_sgf(data: dict[str, object]) -> str:
         raise OGSDownloadError("OGS game data did not include a move list.")
 
     move_parts: list[str] = []
-    color = "B"
+    color = _initial_player(data, gamedata)
     for move in moves:
         if not isinstance(move, list) or len(move) < 2:
             continue

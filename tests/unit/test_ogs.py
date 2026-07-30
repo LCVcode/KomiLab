@@ -39,3 +39,28 @@ def test_ogs_json_to_sgf() -> None:
     assert "GM[1]" in sgf
     assert "PB[Black]PW[White]" in sgf
     assert ";B[dd];W[pp]" in sgf
+
+
+def test_ogs_handicap_json_to_sgf_uses_setup_stones_and_white_to_play() -> None:
+    sgf = ogs_json_to_sgf(
+        {
+            "id": 88417728,
+            "name": "Handicap game",
+            "handicap": 2,
+            "players": {"black": {"username": "Black"}, "white": {"username": "White"}},
+            "gamedata": {
+                "width": 19,
+                "height": 19,
+                "komi": 0.5,
+                "rules": "japanese",
+                "handicap": 2,
+                "initial_player": "white",
+                "initial_state": {"black": "pddp", "white": ""},
+                "moves": [[15, 15], [2, 2]],
+            },
+        }
+    )
+    assert "HA[2]" in sgf
+    assert "AB[pd][dp]" in sgf
+    assert "PL[W]" in sgf
+    assert ";W[pp];B[cc]" in sgf

@@ -1,6 +1,6 @@
 # KomiLab Prototype
 
-Version: 0.3.0
+Version: 0.3.1
 
 KomiLab is a Linux desktop launcher for reviewing OGS games locally in stock KaTrain.
 
