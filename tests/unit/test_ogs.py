@@ -64,3 +64,38 @@ def test_ogs_handicap_json_to_sgf_uses_setup_stones_and_white_to_play() -> None:
     assert "AB[pd][dp]" in sgf
     assert "PL[W]" in sgf
     assert ";W[pp];B[cc]" in sgf
+
+
+def test_ogs_free_handicap_json_to_sgf_converts_opening_placements_to_setup() -> None:
+    sgf = ogs_json_to_sgf(
+        {
+            "id": 2,
+            "name": "Free handicap game",
+            "handicap": 5,
+            "players": {"black": {"username": "Black"}, "white": {"username": "White"}},
+            "gamedata": {
+                "width": 19,
+                "height": 19,
+                "komi": 0.5,
+                "rules": "japanese",
+                "handicap": 5,
+                "free_handicap_placement": True,
+                "initial_player": "black",
+                "initial_state": {"black": "", "white": ""},
+                "moves": [
+                    [2, 4],
+                    [3, 2],
+                    [2, 15],
+                    [4, 16],
+                    [15, 3],
+                    [15, 15],
+                    [3, 3],
+                ],
+            },
+        }
+    )
+    assert "HA[5]" in sgf
+    assert "AB[ce][dc][cp][eq][pd]" in sgf
+    assert "PL[W]" in sgf
+    assert ";W[pp];B[dd]" in sgf
+    assert ";B[ce]" not in sgf

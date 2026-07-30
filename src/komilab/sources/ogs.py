@@ -146,6 +146,10 @@ def _initial_player(data: dict[str, object], gamedata: Mapping[object, object]) 
     return "W" if str(value).lower() == "white" else "B"
 
 
+def _free_handicap_enabled(gamedata: Mapping[object, object]) -> bool:
+    return bool(gamedata.get("free_handicap_placement"))
+
+
 def _as_int(value: object, default: int) -> int:
     if isinstance(value, int):
         return value
@@ -182,6 +186,27 @@ def ogs_json_to_sgf(data: dict[str, object]) -> str:
         black_setup = _initial_state_coords(initial_state.get("black"))
         white_setup = _initial_state_coords(initial_state.get("white"))
 
+    moves = gamedata.get("moves")
+    if not isinstance(moves, list):
+        raise OGSDownloadError("OGS game data did not include a move list.")
+
+    move_start_index = 0
+    if handicap and _free_handicap_enabled(gamedata) and not black_setup:
+        for move in moves[:handicap]:
+            if not isinstance(move, list) or len(move) < 2:
+                continue
+            x = _as_int(move[0], -1)
+            y = _as_int(move[1], -1)
+            coord = _sgf_coord(x, y)
+            if coord:
+                black_setup.append(coord)
+                move_start_index += 1
+        if black_setup:
+            # OGS represents free handicap placement as the first N black "moves".
+            # SGF/KaTrain need those stones represented as setup stones, with White
+            # to play after the handicap placement is complete.
+            move_start_index = len(black_setup)
+
     props = [
         "(;GM[1]FF[4]",
         f"CA[UTF-8]AP[KomiLab:0.1]SZ[{width}]",
@@ -198,17 +223,14 @@ def ogs_json_to_sgf(data: dict[str, object]) -> str:
     if white_setup:
         props.append(_setup_property("AW", white_setup))
     if black_setup or white_setup:
-        props.append(f"PL[{_initial_player(data, gamedata)}]")
+        player_to_move = "W" if handicap and black_setup else _initial_player(data, gamedata)
+        props.append(f"PL[{player_to_move}]")
     if data.get("outcome"):
         props.append(f"RE[{_sgf_escape(data['outcome'])}]")
 
-    moves = gamedata.get("moves")
-    if not isinstance(moves, list):
-        raise OGSDownloadError("OGS game data did not include a move list.")
-
     move_parts: list[str] = []
-    color = _initial_player(data, gamedata)
-    for move in moves:
+    color = "W" if handicap and black_setup else _initial_player(data, gamedata)
+    for move in moves[move_start_index:]:
         if not isinstance(move, list) or len(move) < 2:
             continue
         x = _as_int(move[0], -1)

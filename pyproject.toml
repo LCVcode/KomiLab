@@ -1,6 +1,6 @@
 [project]
 name = "komilab"
-version = "0.3.1"
+version = "0.3.2"
 description = "Local AI review for your Go games."
 readme = "README.md"
 license = "MIT"
